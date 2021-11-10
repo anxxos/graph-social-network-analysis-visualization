@@ -1,4 +1,4 @@
-# Práctica Final de Análisis de Grafos y RRSS
+# Análisis de Grafos y Redes Sociales
 ## Muestra de Red de Relaciones SWIFT
 
 ###### Abril 2019
