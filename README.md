@@ -1,7 +1,7 @@
 # Práctica Final de Análisis de Grafos y RRSS
 ## Muestra de Red de Relaciones SWIFT
 
-###### April 2019
+###### Abril 2019
 
 > Para un correcto funcionamiento, utilizar **PyCharm** y abrir el repositorio como proyecto. Ejecutar entonces el archivo HTML y visualizar en Google Chrome. En la carpeta _images_ podrás ver una muestra del resultado de la ejecución del proyecto.
 
