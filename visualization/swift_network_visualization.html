@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="author" content="Ángeles Blanco Fernández">
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script type='text/javascript' src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script type='text/javascript' src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.js"></script>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css"
+          integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf"
+          crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="style.css"/>
+    <title>SWIFT Network</title>
+</head>
+<body>
+    <div class="header">
+    <ul class="topnav">
+            <img src="icons/cib.png" style="float:left">
+            <img src="icons/swift_logo.png" width="60" height="60" style="float:right">
+    </ul>
+    </div>
+    <div>
+        <ul class="navbar">
+            <h2 class="visualization__title">SWIFT Network Evaluation</h2>
+            <h3 class="visualization__subtitle">MT103-STP Category</h3>
+        </ul>
+        <input class="left" type="text" id="search_node" placeholder="Type node ID&hellip;"/>
+        <input class="right" type="text" id="search_link" placeholder="Type message ID&hellip;"/>
+        <!--button type="button" id="search_button" onclick="highLight()">
+        Search Node
+        </button-->
+    </div>
+    <div id="content">
+        <svg width="1280" height="768"></svg>
+    </div>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <script>
+        var svg = d3.select("svg"),
+            width = +svg.attr("width"),
+            height = +svg.attr("height");
+
+        var simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(function(d) { return d.id; }).distance(40))
+            .force("charge", d3.forceManyBody().strength(-120))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collide", d3.forceCollide().radius(function (d) {
+                return 10 + d.betweenness * 200;
+            }))
+            .force("forceX", d3.forceX(width / 2).strength(0.15) )
+            .force("forceY", d3.forceY(height / 2).strength(0.15) );
+
+        var color = d3.scaleOrdinal()
+            .range(["#006EC1", "#009EE5" , "#71c7ec", "#111E6C", "#B5E5F9"]);
+
+        var div = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        d3.json("../data/data.json", function(error, graph) {
+          if (error) throw error;
+
+          // zoom behaviour
+          var zoom = d3.zoom()
+            .scaleExtent([1 / 10, 4])
+            .on("zoom", zoomed);
+
+          svg
+            .style("fill", "none")
+            .style("pointer-events", "all")
+            .call(zoom);
+
+          // search for nodes
+
+          // future implementations
+          //var optArray = svg.nodes()
+          //    .map(function (d) { return d.id; })
+          //    .sort();
+
+          //$(function () {
+          //  $("#search_node").autocomplete({
+          //    source: optArray
+          //  });
+          //});
+
+          // bind UI event handlers
+          //$('#search_button').click(function () {highLight()});
+
+          // create links and nodes
+          var g_links = svg.append("g")
+              .attr("class", "links");
+
+          var link = g_links
+              .selectAll("line")
+              .data(graph.links)
+              .enter().append("line")
+              //.attr('marker-end','url(#arrowhead)')
+              .style("stroke-width", function(d) {
+                  return Math.log10(d.swift_settled_amount/5);
+              })
+                .on("mouseover", function(d) {
+                    div.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    div.html(d.swift_uetr_121_id)
+                        .style("left", (d3.event.pageX) + "px")
+                        .style("top", (d3.event.pageY - 28) + "px")
+                        .style("background", "#999")
+                    })
+                .on("mouseout", function(d) {
+                    div.transition()
+                        .duration(400)
+                        .style("opacity", 0);
+                    });
+
+          link.append('title')
+            .text(function(d){return "ID: " + d.swift_uetr_121_id + "\n" +
+                "Category: " + d.swift_message_category_type + "\n" +
+                "Source: " + d.source + "\n" +
+                "Target: " + d.target + "\n" +
+                "Amount: " + d.swift_settled_amount + "\n" +
+                "Currency: " + d.swift_currency_id + "\n" +
+                "Value Date: " + d.swift_value_date + "\n" +
+                "Betweenness: " + d.edge_betweenness;});
+
+          var g_nodes = svg.append("g")
+              .attr("class", "nodes");
+
+          var node = g_nodes
+              .selectAll("g")
+              .data(graph.nodes)
+              .enter().append("g")
+              .on('mousedown.fade', fade(0.2))
+              .on('mouseover.fade', fade(0.2))
+              .on('mouseout.fade', fade_out(1))
+              .on('dblclick',releaseNode)
+              .on("mouseover", function(d) {
+                div.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+                div.html(d['id'])
+                    .style("left", (d3.event.pageX) + "px")
+                    .style("top", (d3.event.pageY - 28) + "px")
+                    .style("background", attr_fill(d))
+                })
+            .on("mouseout", function(d) {
+                div.transition()
+                    .duration(400)
+                    .style("opacity", 0);
+                });
+
+          node.append("title")
+            .text(function (d) {
+                return "ID: " + d.id + "\n" +
+                    "Community: " + d.community + "\n" +
+                    "Betweenness: " + d.betweenness + "\n" +
+                    "Closeness: " + d.closeness + "\n" +
+                    "Eigenvector: " + d.eigenvector + "\n" +
+                    "Pagerank: " + d.pagerank;
+            });
+
+          var icons = node.append("text")
+              .attr("class", "fas fa-lg")
+              //.attr('font-family', 'FontAwesome')
+              //.attr('font-size', function (d) { return '25px' })
+              .text(function (d) { return d.font })
+              .attr("fill", function (d) { return attr_fill(d) });
+
+          //var images = node.append("image")
+          //    .attr("xlink:href", function(d) { return d.icon; })
+          //    .attr("x", 0)
+          //    .attr("y", 0)
+          //    .attr("width", "30px")
+          //    .attr("height", "30px")
+          //    .attr("fill", function (d) {
+          //       return color(d.community);
+          //    });
+
+          //var labels = node.append("text")
+          //    .text(function(d) {
+          //      return d.id;})
+          //    .attr('fill', "#555")
+          //    .attr('x', -20)
+          //    .attr('y', 15);
+
+          function highLightNode() {
+              var search_value = document.getElementById("search_node").value;
+              console.log(search_value);
+              icons.attr("class", function (d) {
+                  if (d.id == search_value) {
+                      return "fas fa-5x"
+                  } else {
+                      return "fas fa-lg"
+                  }
+              });
+              icons.style("fill", function (d) {
+                  if (d.id == search_value) {
+                      return "#fff"
+                  } else {
+                      return attr_fill(d)
+                  }
+              });
+              icons.style("stroke-opacity", function (d) {
+                  if (d.id == search_value) {
+                      return "1"
+                  } else {
+                      return "0.4"
+                  }
+              });
+              icons.style("stroke-width", function (d) {
+                  if (d.id == search_value) {
+                      return "2.5"
+                  } else {
+                      return "1"
+                  }
+              });
+              icons.style("stroke", function (d) {
+                  if (d.id == search_value) {
+                      return "green"
+                  } else {
+                      return "#555"
+                  }
+              });
+          }
+
+          function highLightLink() {
+              var search_value = document.getElementById("search_link").value;
+              console.log(search_value);
+              link.style("stroke", function(d) {
+                  if (d.swift_uetr_121_id == search_value) {
+                      return "green"
+                    } else {
+                      return "#999"
+                    }
+              });
+          }
+
+          d3.select("#search_node").on("change paste keyup", function() {
+              highLightNode();
+            });
+          d3.select("#search_link").on("change paste keyup", function() {
+              highLightLink();
+            });
+
+          // size event on mouseover
+          var setEvents = node
+            .on( 'mouseenter', function() {
+                // select element in current context
+                d3.select( this ).raise().select('text')
+                    .transition()
+                    .attr("class", "fas fa-3x");
+                    })
+            // set back
+            .on( 'mouseleave', function() {
+                d3.select( this ).select('text')
+                    .transition()
+                    .attr("class", "fas fa-lg");
+                    });
+
+          simulation
+              .nodes(graph.nodes)
+              .on("tick", ticked);
+
+          simulation.force("link")
+              .links(graph.links);
+
+          function ticked() {
+            link
+                .attr("x1", function(d) { return d.source.x; })
+                .attr("y1", function(d) { return d.source.y; })
+                .attr("x2", function(d) { return d.target.x; })
+                .attr("y2", function(d) { return d.target.y; });
+
+            node
+                .attr("transform", function(d) {
+                  return "translate(" + d.x + "," + d.y + ")";
+                })
+          }
+
+          var drag_handler = d3.drag()
+            .on("start", drag_start)
+            .on("drag", drag_drag)
+            .on("end", drag_end);
+
+          drag_handler(node);
+
+          function drag_start(d) {
+              if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+              d.fx = d.x;
+              d.fy = d.y;
+          }
+
+          function drag_drag(d) {
+              d.fx = d3.event.x;
+              d.fy = d3.event.y;
+          }
+
+          function drag_end(d) {
+              if (!d3.event.active) simulation.alphaTarget(0);
+              d.fx = null;
+              d.fy = null;
+          }
+
+          function zoomed() {
+            var transform = d3.event.transform;
+            g_nodes.attr("transform", d3.event.transform);
+            g_links.attr("transform", d3.event.transform);
+          }
+
+          function releaseNode(d) {
+              d.fx = null;
+              d.fy = null;
+            }
+
+          // highlight node and neighbours (on mouseover)
+          const linkedByIndex = {};
+              graph.links.forEach(d => {
+                linkedByIndex[`${d.source.id},${d.target.id}`] = 1;
+              });
+
+          function isConnected(a, b) {
+            return linkedByIndex[`${a.id},${b.id}`] || linkedByIndex[`${b.id},${a.id}`] || a.id === b.id;
+          }
+
+          function fade(opacity) {
+            return d => {
+              node.style('stroke-opacity', function (o) {
+                const thisOpacity = isConnected(d, o) ? 1 : opacity;
+                this.setAttribute('fill-opacity', thisOpacity);
+                return thisOpacity;
+              });
+
+              link.style('stroke-opacity', o => (o.source === d || o.target === d ? 1 : opacity));
+            };
+              }
+
+          function fade_out(opacity) {
+              return d => {
+              node.style('stroke-opacity', function (o) {
+                const thisOpacity = isConnected(d, o) ? 1 : opacity;
+                this.setAttribute('fill-opacity', thisOpacity);
+                return thisOpacity;
+              });
+
+              link.style('stroke-opacity', 0.6);
+            };
+          }
+
+          // color fill based on node type
+          function attr_fill(d) {
+            switch (d['type']) {
+                case 'bank': return "#7a7145";
+                case 'customer': return color(d.community);
+                default: return color(d.community);
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
